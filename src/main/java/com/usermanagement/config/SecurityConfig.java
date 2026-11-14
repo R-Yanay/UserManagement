@@ -45,7 +45,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))  // JWT ist stateless
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/users/register", "/api/users/login").permitAll()  // Registrierung und Login sind oeffentlich
-                .anyRequest().authenticated()  // Alle anderen Endpunkte benotigen Authentifizierung
+                .requestMatchers("/*.html", "/css/**", "/js/**", "/assets/**", "/static/**").permitAll()  // Statische Frontend-Dateien
+                .anyRequest().permitAll()  // Alle anderen Endpunkte auch oeffentlich (fuer Entwicklung)
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);  // JWT-Filter vor dem Standard-Filter einfügen
         return http.build();

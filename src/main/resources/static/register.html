@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benutzer registrieren</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .link {
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+        }
+
+        .link a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Registrierung</h1>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" required placeholder="Dein Name">
+            </div>
+            <div class="form-group">
+                <label for="email">E-Mail:</label>
+                <input type="email" id="email" required placeholder="deine@email.de">
+            </div>
+            <div class="form-group">
+                <label for="password">Passwort:</label>
+                <input type="password" id="password" required placeholder="Mindestens 6 Zeichen" minlength="6">
+            </div>
+            <button type="submit">Registrieren</button>
+        </form>
+        <div id="message" class="message"></div>
+        <div class="link">
+            Bereits registriert? <a href="login.html">Einloggen</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = 'message';
+            messageDiv.textContent = '';
+
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            console.log('Registrierung versuchen:', { name, email, password });
+
+            try {
+                const response = await fetch('/api/users/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                console.log('Antwort Status:', response.status);
+
+                if (response.status === 201) {
+                    const data = await response.json();
+                    console.log('Registrierung erfolgreich:', data);
+                    messageDiv.textContent = 'Registrierung erfolgreich! Du kannst dich jetzt einloggen.';
+                    messageDiv.className = 'message success';
+                    document.getElementById('registerForm').reset();
+                } else if (response.status === 409) {
+                    const errorData = await response.json();
+                    console.log('E-Mail existiert bereits:', errorData);
+                    messageDiv.textContent = errorData.error || 'Diese E-Mail-Adresse ist bereits registriert!';
+                    messageDiv.className = 'message error';
+                } else if (response.status === 400) {
+                    const errorData = await response.json();
+                    console.log('Ungültige Eingabe:', errorData);
+                    messageDiv.textContent = errorData.error || 'Bitte überprüfe deine Eingaben.';
+                    messageDiv.className = 'message error';
+                } else {
+                    const errorText = await response.text();
+                    console.log('Unerwarteter Fehler:', response.status, errorText);
+                    messageDiv.textContent = 'Fehler beim Server (Status ' + response.status + ').';
+                    messageDiv.className = 'message error';
+                }
+            } catch (error) {
+                console.error('Verbindungsfehler:', error);
+                messageDiv.textContent = 'Fehler: Keine Verbindung zum Server. Ist die Anwendung gestartet?';
+                messageDiv.className = 'message error';
+            }
+        });
+    </script>
+</body>
+</html>

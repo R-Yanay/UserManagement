@@ -41,15 +41,9 @@ public class UserController {
      *         HTTP 409 wenn die E-Mail bereits registriert ist
      */
     @PostMapping("/register")
-    public ResponseEntity<UserRegistrationResponse> register(@Valid @RequestBody UserRegistrationRequest request) {
-        try {
-            UserRegistrationResponse response = userService.registerUser(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (EmailAlreadyExistsException e) {
-            // Wenn E-Mail bereits existiert, returniere 409 Conflict mit Fehlermeldung
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(null);
-        }
+    public ResponseEntity<?> register(@Valid @RequestBody UserRegistrationRequest request) {
+        UserRegistrationResponse response = userService.registerUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**
@@ -60,14 +54,9 @@ public class UserController {
      *         HTTP 401 wenn E-Mail oder Passwort falsch sind
      */
     @PostMapping("/login")
-    public ResponseEntity<UserLoginResponse> login(@Valid @RequestBody UserLoginRequest request) {
-        try {
-            UserLoginResponse response = userService.login(request);
-            return ResponseEntity.ok(response);
-        } catch (InvalidCredentialsException e) {
-            // Wenn E-Mail oder Passwort falsch, returniere 401 Unauthorized
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+    public ResponseEntity<?> login(@Valid @RequestBody UserLoginRequest request) {
+        UserLoginResponse response = userService.login(request);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -80,6 +69,25 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> getProfile() {
         UserProfileResponse profile = userService.getProfile();
         return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Fehler-Handler fuer doppelte E-Mail-Adresse.
+     * Muss vor dem allgemeinen Exception-Handler stehen.
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEmailAlreadyExists(EmailAlreadyExistsException e) {
+        ErrorResponse error = new ErrorResponse(e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    /**
+     * Fehler-Handler fuer ungueltige Login-Daten.
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException e) {
+        ErrorResponse error = new ErrorResponse(e.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     /**

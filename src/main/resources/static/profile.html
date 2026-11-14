@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mein Profil</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+
+        .profile-info {
+            display: none;
+        }
+
+        .profile-info.visible {
+            display: block;
+        }
+
+        .profile-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .profile-item label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .profile-item span {
+            display: block;
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-logout {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            line-height: 44px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mein Profil</h1>
+
+        <div id="profileInfo" class="profile-info">
+            <div class="profile-item">
+                <label>Name</label>
+                <span id="name"></span>
+            </div>
+            <div class="profile-item">
+                <label>E-Mail</label>
+                <span id="email"></span>
+            </div>
+            <div class="profile-item">
+                <label>Rolle</label>
+                <span id="role"></span>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <div class="button-group">
+            <button id="logoutBtn" class="btn-logout" style="display:none;" onclick="logout()">Ausloggen</button>
+            <a href="login.html" id="loginLink" class="btn-login" style="display:none;">Einloggen</a>
+        </div>
+    </div>
+
+    <script>
+        // Token aus dem Browser-Speicher holen
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            // Kein Token gefunden - zur Login-Seite weiterleiten
+            document.getElementById('message').textContent = 'Bitte erst einloggen!';
+            document.getElementById('message').className = 'message error';
+            document.getElementById('loginLink').style.display = 'inline-block';
+        } else {
+            // Profil vom Server laden
+            fetch('/api/users/profile', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    // Token ungültig - ausloggen
+                    localStorage.removeItem('token');
+                    throw new Error('Token ungültig. Bitte neu einloggen.');
+                }
+            })
+            .then(data => {
+                // Profilinformationen anzeigen
+                document.getElementById('name').textContent = data.name;
+                document.getElementById('email').textContent = data.email;
+                document.getElementById('role').textContent = data.role || 'USER';
+                document.getElementById('profileInfo').classList.add('visible');
+                document.getElementById('logoutBtn').style.display = 'inline-block';
+            })
+            .catch(error => {
+                document.getElementById('message').textContent = error.message;
+                document.getElementById('message').className = 'message error';
+                document.getElementById('loginLink').style.display = 'inline-block';
+            });
+        }
+
+        // Ausloggen-Funktion
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
