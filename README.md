@@ -7,9 +7,12 @@ Eine Spring Boot-Anwendung für das Benutzermanagement mit JWT-Authentifizierung
 - **Benutzerregistrierung** mit E-Mail-Validierung und Passwort-Hashing (BCrypt)
 - **Login** mit JWT-Token-Ausgabe
 - **Geschützter Profil-Endpunkt** mit JWT-Authentifizierung
+- **Profil bearbeiten** – Name und E-Mail aktualisieren
+- **Passwort ändern** – mit Bestätigung des alten Passworts
+- **Registrierungsdatum** wird angezeigt und gespeichert
 - **Eingabevalidierung** mit Jakarta Validation
-- **HTML-Frontend** mit Registrierungs-, Login- und Profilseite
-- **Integrationstests** mit MockMvc und in-memory SQLite
+- **HTML-Frontend** mit Registrierungs-, Login- und Profilseite (inkl. Bearbeiten und Passwort ändern)
+- **Integrationstests** mit MockMvc und in-memory SQLite (20 Tests)
 
 ## Technologien
 
@@ -77,7 +80,7 @@ Die Anwendung startet standardmäßig auf `http://localhost:8080`.
 mvn clean test
 ```
 
-Alle 12 Integrationstests werden ausgeführt (11 API-Tests + 1 Context-Test).
+Alle 20 Integrationstests werden ausgeführt (19 API-Tests + 1 Context-Test).
 
 ## API-Endpunkte
 
@@ -142,13 +145,64 @@ Authorization: Bearer <JWT-Token>
 
 ```json
 {
+  "id": 1,
   "name": "Max Mustermann",
-  "email": "max@example.com"
+  "email": "max@example.com",
+  "role": "USER",
+  "createdAt": "2026-11-14T11:42:46"
 }
 ```
 
 **Fehler:**
 - `401 Unauthorized` – Token fehlt oder abgelaufen
+- `403 Forbidden` – Token ungültig
+
+### Profil bearbeiten (geschützt)
+
+```
+PUT /api/users/profile
+Authorization: Bearer <JWT-Token>
+Content-Type: application/json
+
+{
+  "name": "Max Neu",
+  "email": "maxneu@example.com"
+}
+```
+
+**Antwort:** `200 OK` – Aktualisiertes Profil mit `createdAt`
+
+**Fehler:**
+- `400 Bad Request` – Ungültige Eingabe (leerer Name, ungültige E-Mail)
+- `401 Unauthorized` – Token fehlt oder abgelaufen
+- `403 Forbidden` – Token ungültig
+- `409 Conflict` – E-Mail bereits von einem anderen Benutzer registriert
+
+### Passwort ändern (geschützt)
+
+```
+POST /api/users/change-password
+Authorization: Bearer <JWT-Token>
+Content-Type: application/json
+
+{
+  "oldPassword": "geheim123",
+  "newPassword": "neuesPasswort123",
+  "confirmPassword": "neuesPasswort123"
+}
+```
+
+**Antwort:** `200 OK`
+
+```json
+{
+  "message": "Passwort erfolgreich geändert!"
+}
+```
+
+**Fehler:**
+- `400 Bad Request` – Passwörter stimmen nicht überein, neues Passwort zu kurz (min. 6 Zeichen)
+- `401 Unauthorized` – Altes Passwort falsch oder Token fehlt
 - `403 Forbidden` – Token ungültig
 
 ## HTML-Frontend
@@ -167,12 +221,18 @@ Die Anwendung enthält ein einfaches HTML-Frontend, das direkt im Browser genutz
 
 1. **Registrierung:** Fülle das Formular aus und klicke auf "Registrieren". Bei Erfolg erscheint eine grüne Meldung.
 2. **Login:** Gib E-Mail und Passwort ein. Nach erfolgreichem Login wird der JWT-Token im Browser (`localStorage`) gespeichert und automatisch zur Profilseite weitergeleitet.
-3. **Profil:** Zeigt Name, E-Mail und Rolle des eingeloggten Benutzers an. Ohne Token wird zur Loginseite weitergeleitet.
+3. **Profil:** Zeigt Name, E-Mail, Rolle und Registrierungsdatum des eingeloggten Benutzers an. Ohne Token wird zur Loginseite weitergeleitet.
+4. **Profil bearbeiten:** Klicke auf "Bearbeiten", ändere Name oder E-Mail und klicke auf "Speichern". Bei Erfolg wird das aktualisierte Profil angezeigt.
+5. **Passwort ändern:** Klicke auf "Passwort ändern", gib altes und neues Passwort ein (mit Bestätigung) und klicke auf "Ändern". Bei Erfolg erscheint eine grüne Meldung.
 
 ### Fehlermeldungen
 
 - **Doppelte E-Mail bei Registrierung:** Rote Fehlermeldung "E-Mail-Adresse ist bereits registriert: ..."
 - **Falsche Login-Daten:** Rote Fehlermeldung "E-Mail oder Passwort ist falsch"
+- **Doppelte E-Mail bei Profil bearbeiten:** Rote Fehlermeldung "E-Mail-Adresse ist bereits registriert: ..."
+- **Falsches altes Passwort:** Rote Fehlermeldung "Altes Passwort ist falsch"
+- **Passwörter stimmen nicht überein:** Rote Fehlermeldung "Passwörter stimmen nicht überein"
+- **Kurzes Passwort:** Rote Fehlermeldung "Passwort muss mindestens 6 Zeichen lang sein"
 - **Server nicht erreichbar:** Fehlermeldung "Keine Verbindung zum Server"
 
 ## Konfiguration
@@ -214,8 +274,12 @@ Die Anwendung verwendet **Integrationstests** mit `@SpringBootTest` und `@AutoCo
 |-----------|-------|
 | Registrierung | 5 Tests (erfolgreich, doppelte E-Mail, leerer Name, kurzes Passwort, ungültige E-Mail) |
 | Login | 4 Tests (erfolgreich, falsches Passwort, nicht registriert, leere E-Mail) |
-| Profil | 2 Tests (ohne Token, mit gültigem Token) |
+| Profil | 2 Tests (ohne Token, mit gültigem Token + createdAt) |
+| Profil bearbeiten | 4 Tests (erfolgreich, doppelte E-Mail, ohne Token, leerer Name) |
+| Passwort ändern | 5 Tests (erfolgreich, falsches altes Passwort, nicht übereinstimmend, kurzes Passwort, ohne Token) |
 | Anwendung | 1 Test (Context lädt) |
+
+**Gesamt: 20 Tests**
 
 ## Lizenz
 

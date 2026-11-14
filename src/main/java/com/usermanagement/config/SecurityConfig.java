@@ -46,7 +46,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/users/register", "/api/users/login").permitAll()  // Registrierung und Login sind oeffentlich
                 .requestMatchers("/*.html", "/css/**", "/js/**", "/assets/**", "/static/**").permitAll()  // Statische Frontend-Dateien
-                .anyRequest().permitAll()  // Alle anderen Endpunkte auch oeffentlich (fuer Entwicklung)
+                .anyRequest().authenticated()  // Alle anderen Endpunkte benoetigen Authentifizierung
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);  // JWT-Filter vor dem Standard-Filter einfügen
         return http.build();

@@ -1,6 +1,7 @@
 package com.usermanagement.dto;
 
 import com.usermanagement.model.Role;
+import java.time.LocalDateTime;
 
 /**
  * DTO fuer die Profil-Antwort.
@@ -12,12 +13,14 @@ public class UserProfileResponse {
     private String name;
     private String email;
     private Role role;
+    private LocalDateTime createdAt;
 
-    public UserProfileResponse(Long id, String name, String email, Role role) {
+    public UserProfileResponse(Long id, String name, String email, Role role, LocalDateTime createdAt) {
         this.id = id;
         this.name = name;
         this.email = email;
         this.role = role;
+        this.createdAt = createdAt;
     }
 
     public Long getId() {
@@ -50,5 +53,13 @@ public class UserProfileResponse {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

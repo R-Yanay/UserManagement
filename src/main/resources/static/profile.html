@@ -66,6 +66,54 @@
             font-weight: 500;
         }
 
+        /* Edit-Formular-Stile */
+        .edit-form {
+            display: none;
+        }
+
+        .edit-form.visible {
+            display: block;
+        }
+
+        .edit-form input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .edit-form input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .edit-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .edit-buttons button {
+            flex: 1;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+            color: white;
+        }
+
+        .btn-cancel {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+            color: white;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
         .message {
             margin-top: 15px;
             padding: 10px;
@@ -77,6 +125,12 @@
         .message.error {
             background-color: #f8d7da;
             color: #721c24;
+            display: block;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
             display: block;
         }
 
@@ -113,6 +167,44 @@
             text-align: center;
             line-height: 44px;
         }
+
+        /* Passwort-ändern-Formular-Stile */
+        .password-form {
+            display: none;
+        }
+
+        .password-form.visible {
+            display: block;
+        }
+
+        .password-form input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .password-form input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .password-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .password-buttons button {
+            flex: 1;
+        }
+
+        .btn-change-password {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -132,11 +224,38 @@
                 <label>Rolle</label>
                 <span id="role"></span>
             </div>
+            <div class="profile-item">
+                <label>Registriert am</label>
+                <span id="createdAt"></span>
+            </div>
+        </div>
+
+        <!-- Edit-Formular (initial versteckt) -->
+        <div id="editForm" class="edit-form">
+            <input type="text" id="editName" placeholder="Name">
+            <input type="email" id="editEmail" placeholder="E-Mail">
+            <div class="edit-buttons">
+                <button type="button" class="btn-save" onclick="saveProfile()">Speichern</button>
+                <button type="button" class="btn-cancel" onclick="cancelEdit()">Abbrechen</button>
+            </div>
+        </div>
+
+        <!-- Passwort-ändern-Formular (initial versteckt) -->
+        <div id="passwordForm" class="password-form">
+            <input type="password" id="oldPassword" placeholder="Altes Passwort">
+            <input type="password" id="newPassword" placeholder="Neues Passwort (min. 6 Zeichen)">
+            <input type="password" id="confirmPassword" placeholder="Neues Passwort bestätigen">
+            <div class="password-buttons">
+                <button type="button" class="btn-save" onclick="changePassword()">Ändern</button>
+                <button type="button" class="btn-cancel" onclick="cancelPassword()">Abbrechen</button>
+            </div>
         </div>
 
         <div id="message" class="message"></div>
 
         <div class="button-group">
+            <button id="editBtn" class="btn-edit" style="display:none;" onclick="showEditForm()">Bearbeiten</button>
+            <button id="changePasswordBtn" class="btn-change-password" style="display:none;" onclick="showPasswordForm()">Passwort ändern</button>
             <button id="logoutBtn" class="btn-logout" style="display:none;" onclick="logout()">Ausloggen</button>
             <a href="login.html" id="loginLink" class="btn-login" style="display:none;">Einloggen</a>
         </div>
@@ -173,7 +292,21 @@
                 document.getElementById('name').textContent = data.name;
                 document.getElementById('email').textContent = data.email;
                 document.getElementById('role').textContent = data.role || 'USER';
+                
+                // Registrierungsdatum formatiert anzeigen (z.B. "14.11.2026")
+                if (data.createdAt) {
+                    const date = new Date(data.createdAt);
+                    const formatted = date.toLocaleDateString('de-DE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                    });
+                    document.getElementById('createdAt').textContent = formatted;
+                }
+                
                 document.getElementById('profileInfo').classList.add('visible');
+                document.getElementById('editBtn').style.display = 'inline-block';
+                document.getElementById('changePasswordBtn').style.display = 'inline-block';
                 document.getElementById('logoutBtn').style.display = 'inline-block';
             })
             .catch(error => {
@@ -181,6 +314,188 @@
                 document.getElementById('message').className = 'message error';
                 document.getElementById('loginLink').style.display = 'inline-block';
             });
+        }
+
+        // Bearbeitungsmodus anzeigen
+        function showEditForm() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+
+            // Aktuelle Werte in das Formular übernehmen
+            document.getElementById('editName').value = document.getElementById('name').textContent;
+            document.getElementById('editEmail').value = document.getElementById('email').textContent;
+
+            // Profilinfo verstecken, Formular anzeigen
+            document.getElementById('profileInfo').classList.remove('visible');
+            document.getElementById('editForm').classList.add('visible');
+            document.getElementById('editBtn').style.display = 'none';
+        }
+
+        // Profil speichern (PUT-Anfrage)
+        function saveProfile() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+
+            const name = document.getElementById('editName').value;
+            const email = document.getElementById('editEmail').value;
+
+            console.log('Profil speichern:', { name, email });
+
+            fetch('/api/users/profile', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ name, email })
+            })
+            .then(response => {
+                console.log('Antwort Status:', response.status);
+                if (response.status === 200) {
+                    return response.json();
+                } else if (response.status === 409) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Diese E-Mail-Adresse ist bereits registriert!');
+                    });
+                } else if (response.status === 400) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Bitte überprüfe deine Eingaben.');
+                    });
+                } else {
+                    throw new Error('Fehler beim Server (Status ' + response.status + ').');
+                }
+            })
+            .then(data => {
+                console.log('Profil aktualisiert:', data);
+                // Profilinformationen aktualisieren
+                document.getElementById('name').textContent = data.name;
+                document.getElementById('email').textContent = data.email;
+                document.getElementById('role').textContent = data.role || 'USER';
+                
+                // Registrierungsdatum aktualisieren
+                if (data.createdAt) {
+                    const date = new Date(data.createdAt);
+                    const formatted = date.toLocaleDateString('de-DE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                    });
+                    document.getElementById('createdAt').textContent = formatted;
+                }
+
+                // Formular verstecken, Profilinfo anzeigen
+                document.getElementById('editForm').classList.remove('visible');
+                document.getElementById('profileInfo').classList.add('visible');
+                document.getElementById('editBtn').style.display = 'inline-block';
+
+                // Erfolgsmeldung anzeigen
+                messageDiv.textContent = 'Profil erfolgreich aktualisiert!';
+                messageDiv.className = 'message success';
+            })
+            .catch(error => {
+                console.error('Fehler beim Speichern:', error);
+                messageDiv.textContent = error.message;
+                messageDiv.className = 'message error';
+            });
+        }
+
+        // Bearbeitung abbrechen
+        function cancelEdit() {
+            document.getElementById('editForm').classList.remove('visible');
+            document.getElementById('profileInfo').classList.add('visible');
+            document.getElementById('editBtn').style.display = 'inline-block';
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+        }
+
+        // Passwort-Formular anzeigen
+        function showPasswordForm() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+
+            // Felder leeren
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+
+            // Profilinfo verstecken, Passwort-Formular anzeigen
+            document.getElementById('profileInfo').classList.remove('visible');
+            document.getElementById('passwordForm').classList.add('visible');
+            document.getElementById('editBtn').style.display = 'none';
+            document.getElementById('changePasswordBtn').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+        }
+
+        // Passwort ändern (POST-Anfrage)
+        function changePassword() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
+
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            console.log('Passwort ändern versuchen...');
+
+            fetch('/api/users/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ oldPassword, newPassword, confirmPassword })
+            })
+            .then(response => {
+                console.log('Antwort Status:', response.status);
+                if (response.status === 200) {
+                    return response.json();
+                } else if (response.status === 401) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Altes Passwort ist falsch');
+                    });
+                } else if (response.status === 400) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Bitte überprüfe deine Eingaben.');
+                    });
+                } else {
+                    throw new Error('Fehler beim Server (Status ' + response.status + ').');
+                }
+            })
+            .then(data => {
+                console.log('Passwort geändert:', data);
+                // Formular verstecken, Profilinfo anzeigen
+                document.getElementById('passwordForm').classList.remove('visible');
+                document.getElementById('profileInfo').classList.add('visible');
+                document.getElementById('editBtn').style.display = 'inline-block';
+                document.getElementById('changePasswordBtn').style.display = 'inline-block';
+                document.getElementById('logoutBtn').style.display = 'inline-block';
+
+                // Erfolgsmeldung anzeigen
+                messageDiv.textContent = data.message || 'Passwort erfolgreich geändert!';
+                messageDiv.className = 'message success';
+            })
+            .catch(error => {
+                console.error('Fehler beim Ändern:', error);
+                messageDiv.textContent = error.message;
+                messageDiv.className = 'message error';
+            });
+        }
+
+        // Passwort-änderung abbrechen
+        function cancelPassword() {
+            document.getElementById('passwordForm').classList.remove('visible');
+            document.getElementById('profileInfo').classList.add('visible');
+            document.getElementById('editBtn').style.display = 'inline-block';
+            document.getElementById('changePasswordBtn').style.display = 'inline-block';
+            document.getElementById('logoutBtn').style.display = 'inline-block';
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = '';
+            messageDiv.className = 'message';
         }
 
         // Ausloggen-Funktion

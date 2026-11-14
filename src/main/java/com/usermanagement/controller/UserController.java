@@ -1,6 +1,9 @@
 package com.usermanagement.controller;
 
+import com.usermanagement.dto.ChangePasswordRequest;
 import com.usermanagement.dto.ErrorResponse;
+import com.usermanagement.dto.SuccessResponse;
+import com.usermanagement.dto.UpdateProfileRequest;
 import com.usermanagement.dto.UserLoginRequest;
 import com.usermanagement.dto.UserLoginResponse;
 import com.usermanagement.dto.UserProfileResponse;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -69,6 +73,35 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> getProfile() {
         UserProfileResponse profile = userService.getProfile();
         return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Aktualisiert das Profil des aktuell eingeloggten Benutzers (Name und E-Mail).
+     * Dieser Endpunkt ist geschuetzt - nur mit gueltigem JWT-Token erreichbar.
+     *
+     * @param request Die neuen Profil-Daten als JSON (Name, E-Mail)
+     * @return HTTP 200 mit den aktualisierten Benutzerdaten
+     *         HTTP 409 wenn die neue E-Mail bereits von einem anderen Benutzer verwendet wird
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        UserProfileResponse profile = userService.updateProfile(request);
+        return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Aendert das Passwort des aktuell eingeloggten Benutzers.
+     * Dieser Endpunkt ist geschuetzt - nur mit gueltigem JWT-Token erreichbar.
+     *
+     * @param request Die Passwort-Aenderungsdaten als JSON (altes Passwort, neues Passwort, Bestaetigung)
+     * @return HTTP 200 mit Bestaetigungsnachricht
+     *         HTTP 401 wenn das alte Passwort falsch ist
+     *         HTTP 400 wenn newPassword und confirmPassword nicht uebereinstimmen oder das neue Passwort zu kurz ist
+     */
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        String message = userService.changePassword(request);
+        return ResponseEntity.ok(new SuccessResponse(message));
     }
 
     /**
