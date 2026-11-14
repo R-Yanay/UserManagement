@@ -38,6 +38,8 @@ graph TD
     subgraph DTOs ["DTOs (Request)"]
         URR["UserRegistrationRequest"]
         ULReq["UserLoginRequest"]
+        UPRReq["UpdateProfileRequest"]
+        CPR["ChangePasswordRequest"]
     end
 
     subgraph DTOsResp ["DTOs (Response)"]
@@ -45,6 +47,7 @@ graph TD
         ULResp["UserLoginResponse"]
         UPR["UserProfileResponse"]
         ER["ErrorResponse"]
+        SR["SuccessResponse"]
     end
 
     subgraph Exceptions ["Custom Exceptions"]
@@ -62,12 +65,15 @@ graph TD
     %% Controller -> DTOs (Request)
     UC -->|"empfängt"| URR
     UC -->|"empfängt"| ULReq
+    UC -->|"empfängt"| UPRReq
+    UC -->|"empfängt"| CPR
 
     %% Controller -> DTOs (Response)
     UC -->|"gibt zurück"| URResp
     UC -->|"gibt zurück"| ULResp
     UC -->|"gibt zurück"| UPR
     UC -->|"gibt zurück"| ER
+    UC -->|"gibt zurück"| SR
 
     %% Controller -> Exceptions
     UC -->|"fängt ab"| EAE
@@ -85,6 +91,8 @@ graph TD
     %% Service -> DTOs (Request)
     US -->|"liest"| URR
     US -->|"liest"| ULReq
+    US -->|"liest"| UPRReq
+    US -->|"liest"| CPR
 
     %% Service -> DTOs (Response)
     US -->|"gibt zurück"| URResp
@@ -134,13 +142,13 @@ graph TD
 
 | Klasse | Abhängigkeiten |
 |--------|---------------|
-| `UserController` | `UserService`, `UserRegistrationRequest`, `UserLoginRequest`, `UserRegistrationResponse`, `UserLoginResponse`, `UserProfileResponse`, `ErrorResponse`, `EmailAlreadyExistsException`, `InvalidCredentialsException` |
+| `UserController` | `UserService`, `UserRegistrationRequest`, `UserLoginRequest`, `UpdateProfileRequest`, `ChangePasswordRequest`, `UserRegistrationResponse`, `UserLoginResponse`, `UserProfileResponse`, `ErrorResponse`, `SuccessResponse`, `EmailAlreadyExistsException`, `InvalidCredentialsException` |
 
 ### Service-Schicht
 
 | Klasse | Abhängigkeiten |
 |--------|---------------|
-| `UserService` | `UserRepository`, `JwtService`, `User`, `Role`, `UserRegistrationRequest`, `UserLoginRequest`, `UserRegistrationResponse`, `UserLoginResponse`, `UserProfileResponse`, `EmailAlreadyExistsException`, `InvalidCredentialsException` |
+| `UserService` | `UserRepository`, `JwtService`, `User`, `Role`, `UserRegistrationRequest`, `UserLoginRequest`, `UpdateProfileRequest`, `ChangePasswordRequest`, `UserRegistrationResponse`, `UserLoginResponse`, `UserProfileResponse`, `EmailAlreadyExistsException`, `InvalidCredentialsException` |
 
 ### Konfiguration
 
@@ -177,10 +185,13 @@ graph TD
 |--------|---------------|
 | `UserRegistrationRequest` | *(keine internen)* – nur Jakarta Validation |
 | `UserLoginRequest` | *(keine internen)* – nur Jakarta Validation |
+| `UpdateProfileRequest` | *(keine internen)* – nur Jakarta Validation (`@NotBlank`, `@Email`) |
+| `ChangePasswordRequest` | *(keine internen)* – nur Jakarta Validation (`@NotBlank`, `@Size(min=6)`) |
 | `UserRegistrationResponse` | `Role` (Enum-Feld) |
 | `UserLoginResponse` | `Role` (Enum-Feld) |
-| `UserProfileResponse` | `Role` (Enum-Feld) |
+| `UserProfileResponse` | `Role` (Enum-Feld), `LocalDateTime` (`createdAt`) |
 | `ErrorResponse` | *(keine)* |
+| `SuccessResponse` | *(keine)* – DTO für Erfolgsantworten mit `message`-Feld |
 
 ### Custom Exceptions
 
@@ -195,7 +206,7 @@ graph TD
 |-------|-------------|
 | `register.html` | Registrierungsformular – sendet POST an `/api/users/register` via `fetch()` |
 | `login.html` | Login-Formular – sendet POST an `/api/users/login`, speichert JWT-Token in `localStorage` |
-| `profile.html` | Profilseite – liest Token aus `localStorage`, ruft GET `/api/users/profile` mit `Authorization: Bearer` auf |
+| `profile.html` | Profilseite – zeigt Name, E-Mail, Rolle und Registrierungsdatum; enthält "Bearbeiten"-Formular (PUT `/api/users/profile`) und "Passwort ändern"-Formular (POST `/api/users/change-password`) |
 
 ## Datenfluss bei Registrierung
 
@@ -236,6 +247,44 @@ Client → GET /api/users/profile (mit JWT-Token)
     → UserService.getProfile()
       → SecurityContextHolder.getContext().getAuthentication().getName()
       → UserRepository.findByEmail(email)
-      → UserProfileResponse
+      → UserProfileResponse (mit createdAt)
     → ResponseEntity<UserProfileResponse> (200 OK)
+```
+
+## Datenfluss bei Profil bearbeiten (geschützt)
+
+```
+Client → PUT /api/users/profile (mit JWT-Token + UpdateProfileRequest)
+  → JwtAuthenticationFilter (prüft Token)
+    → SecurityContextHolder.setAuthentication()
+  → UserController.updateProfile(UpdateProfileRequest)
+    → UserService.updateProfile(UpdateProfileRequest)
+      → SecurityContextHolder.getContext().getAuthentication().getName()
+      → UserRepository.findByEmail(email)
+      → UserRepository.existsByEmail(neueEmail) (Prüfung auf doppelte E-Mail)
+      → User.setName(), User.setEmail()
+      → UserRepository.save(User)
+      → UserProfileResponse (mit createdAt)
+    → ResponseEntity<UserProfileResponse> (200 OK)
+    → ODER ResponseEntity<ErrorResponse> (409 Conflict bei doppelter E-Mail)
+```
+
+## Datenfluss bei Passwort ändern (geschützt)
+
+```
+Client → POST /api/users/change-password (mit JWT-Token + ChangePasswordRequest)
+  → JwtAuthenticationFilter (prüft Token)
+    → SecurityContextHolder.setAuthentication()
+  → UserController.changePassword(ChangePasswordRequest)
+    → UserService.changePassword(ChangePasswordRequest)
+      → SecurityContextHolder.getContext().getAuthentication().getName()
+      → UserRepository.findByEmail(email)
+      → BCryptPasswordEncoder.matches(oldPassword) (Prüfung altes Passwort)
+      → newPassword == confirmPassword (Prüfung Übereinstimmung)
+      → BCryptPasswordEncoder.encode(newPassword)
+      → User.setPassword()
+      → UserRepository.save(User)
+    → ResponseEntity<SuccessResponse> (200 OK mit "Passwort erfolgreich geändert!")
+    → ODER ResponseEntity<ErrorResponse> (401 bei falschem altem Passwort)
+    → ODER ResponseEntity<ErrorResponse> (400 bei Validierungsfehlern)
 ```
