@@ -288,3 +288,256 @@ Client → POST /api/users/change-password (mit JWT-Token + ChangePasswordReques
     → ODER ResponseEntity<ErrorResponse> (401 bei falschem altem Passwort)
     → ODER ResponseEntity<ErrorResponse> (400 bei Validierungsfehlern)
 ```
+
+---
+
+## HTTP-Request-Flow Diagramme
+
+Diese Mermaid-Sequenzdiagramme zeigen detailliert, wie eine HTTP-Anfrage vom Browser durch alle Schichten von Spring Boot läuft.
+
+### 1. Registrierung (POST `/api/users/register`)
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser (register.html)
+    participant Tomcat as Tomcat (Spring Boot)
+    participant Security as Spring Security Filter
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repo as UserRepository
+    participant DB as SQLite (users.db)
+
+    Browser->>Tomcat: POST /api/users/register<br/>Content-Type: application/json<br/>{name, email, password}
+    Tomcat->>Security: Filter-Kette durchlaufen
+    Security-->>Tomcat: permitAll() – Endpunkt öffentlich
+    Tomcat->>Controller: register(UserRegistrationRequest)
+    Controller->>Service: registerUser(UserRegistrationRequest)
+    Service->>Repo: existsByEmail(email)
+    Repo->>DB: SELECT id FROM users WHERE email=? LIMIT 1
+    DB-->>Repo: false (E-Mail frei)
+    Repo-->>Service: false
+    Service->>Service: User erstellen<br/>BCrypt.encode(password)<br/>createdAt = now()
+    Service->>Repo: save(User)
+    Repo->>DB: INSERT INTO users VALUES (...)
+    DB-->>Repo: User mit ID
+    Repo-->>Service: User gespeichert
+    Service->>Service: UserRegistrationResponse erstellen
+    Service-->>Controller: UserRegistrationResponse
+    Controller->>Controller: ResponseEntity.status(201).body(response)
+    Controller-->>Tomcat: 201 Created + JSON
+    Tomcat-->>Browser: HTTP 201<br/>{name, email, role}
+    Browser->>Browser: Erfolgsmeldung anzeigen
+```
+
+### 2. Login (POST `/api/users/login`)
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser (login.html)
+    participant Tomcat as Tomcat (Spring Boot)
+    participant Security as Spring Security Filter
+    participant Controller as UserController
+    participant Service as UserService
+    participant Jwt as JwtService
+    participant Repo as UserRepository
+    participant DB as SQLite (users.db)
+
+    Browser->>Tomcat: POST /api/users/login<br/>Content-Type: application/json<br/>{email, password}
+    Tomcat->>Security: Filter-Kette durchlaufen
+    Security-->>Tomcat: permitAll() – Endpunkt öffentlich
+    Tomcat->>Controller: login(UserLoginRequest)
+    Controller->>Service: login(UserLoginRequest)
+    Service->>Repo: findByEmail(email)
+    Repo->>DB: SELECT * FROM users WHERE email=?
+    DB-->>Repo: User gefunden
+    Repo-->>Service: User
+    Service->>Service: BCrypt.matches(password, user.password)
+    alt Passwort stimmt
+        Service->>Jwt: generateToken(email)
+        Jwt->>Jwt: JWS.sign() mit Secret
+        Jwt-->>Service: JWT-Token String
+        Service->>Service: UserLoginResponse(token, email, role)
+        Service-->>Controller: UserLoginResponse
+        Controller->>Controller: ResponseEntity.ok(response)
+        Controller-->>Tomcat: 200 OK + JSON
+        Tomcat-->>Browser: HTTP 200<br/>{token, email, role}
+        Browser->>Browser: localStorage.setItem('token', token)<br/>Weiter zu profile.html
+    else Passwort falsch
+        Service-->>Controller: InvalidCredentialsException
+        Controller->>Controller: ResponseEntity.status(401).body(error)
+        Controller-->>Tomcat: 401 Unauthorized + JSON
+        Tomcat-->>Browser: HTTP 401<br/>{error: "E-Mail oder Passwort ist falsch"}
+        Browser->>Browser: Rote Fehlermeldung anzeigen
+    end
+```
+
+### 3. Profil anzeigen (GET `/api/users/profile` – geschützt)
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser (profile.html)
+    participant Tomcat as Tomcat (Spring Boot)
+    participant JwtFilter as JwtAuthenticationFilter
+    participant Jwt as JwtService
+    participant UserDetail as CustomUserDetailsService
+    participant Security as SecurityContextHolder
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repo as UserRepository
+    participant DB as SQLite (users.db)
+
+    Browser->>Tomcat: GET /api/users/profile<br/>Authorization: Bearer <JWT-Token>
+    Tomcat->>JwtFilter: doFilterInternal()
+    JwtFilter->>Jwt: extractUsername(token)
+    Jwt-->>JwtFilter: email aus Token
+    JwtFilter->>Jwt: isTokenValid(token, email)
+    alt Token gültig
+        Jwt-->>JwtFilter: true
+        JwtFilter->>UserDetail: loadUserByUsername(email)
+        UserDetail->>Repo: findByEmail(email)
+        Repo->>DB: SELECT * FROM users WHERE email=?
+        DB-->>Repo: User
+        Repo-->>UserDetail: User
+        UserDetail-->>JwtFilter: UserDetails
+        JwtFilter->>Security: setAuthentication(UsernamePasswordAuthenticationToken)
+        Security-->>JwtFilter: Authentication gespeichert
+        JwtFilter->>Controller: FilterChain.doFilter() – weiterleiten
+        Controller->>Service: getProfile()
+        Service->>Security: getContext().getAuthentication().getName()
+        Security-->>Service: email
+        Service->>Repo: findByEmail(email)
+        Repo->>DB: SELECT * FROM users WHERE email=?
+        DB-->>Repo: User
+        Repo-->>Service: User
+        Service->>Service: UserProfileResponse(name, email, role, createdAt)
+        Service-->>Controller: UserProfileResponse
+        Controller->>Controller: ResponseEntity.ok(profile)
+        Controller-->>Tomcat: 200 OK + JSON
+        Tomcat-->>Browser: HTTP 200<br/>{id, name, email, role, createdAt}
+        Browser->>Browser: Profil anzeigen<br/>(Name, E-Mail, Rolle, Registrierungsdatum)
+    else Token ungültig oder fehlt
+        Jwt-->>JwtFilter: false
+        JwtFilter-->>Tomcat: 403 Forbidden
+        Tomcat-->>Browser: HTTP 403
+        Browser->>Browser: Zur login.html weiterleiten
+    end
+```
+
+### 4. Profil bearbeiten (PUT `/api/users/profile` – geschützt)
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser (profile.html)
+    participant Tomcat as Tomcat (Spring Boot)
+    participant JwtFilter as JwtAuthenticationFilter
+    participant Controller as UserController
+    participant Service as UserService
+    participant Repo as UserRepository
+    participant DB as SQLite (users.db)
+
+    Browser->>Tomcat: PUT /api/users/profile<br/>Authorization: Bearer <JWT-Token><br/>{name, email}
+    Tomcat->>JwtFilter: doFilterInternal() – Token prüfen
+    JwtFilter-->>Tomcat: Token gültig, weiterleiten
+    Tomcat->>Controller: updateProfile(UpdateProfileRequest)
+    Controller->>Service: updateProfile(UpdateProfileRequest)
+    Service->>Service: Aktuelle email aus SecurityContext
+    Service->>Repo: findByEmail(aktuelleEmail)
+    Repo->>DB: SELECT * FROM users WHERE email=?
+    DB-->>Repo: User
+    Repo-->>Service: User
+    alt Neue E-Mail ist bereits registriert
+        Service->>Repo: existsByEmail(neueEmail)
+        Repo->>DB: SELECT id FROM users WHERE email=? LIMIT 1
+        DB-->>Repo: true
+        Repo-->>Service: true
+        Service-->>Controller: EmailAlreadyExistsException
+        Controller->>Controller: ResponseEntity.status(409).body(error)
+        Controller-->>Tomcat: 409 Conflict + JSON
+        Tomcat-->>Browser: HTTP 409<br/>{error: "E-Mail-Adresse ist bereits registriert"}
+        Browser->>Browser: Rote Fehlermeldung anzeigen
+    else Neue E-Mail ist frei
+        Service->>Service: User.setName(neuerName)<br/>User.setEmail(neueEmail)
+        Service->>Repo: save(User)
+        Repo->>DB: UPDATE users SET name=?, email=? WHERE id=?
+        DB-->>Repo: User aktualisiert
+        Repo-->>Service: User
+        Service->>Service: UserProfileResponse erstellen
+        Service-->>Controller: UserProfileResponse
+        Controller->>Controller: ResponseEntity.ok(profile)
+        Controller-->>Tomcat: 200 OK + JSON
+        Tomcat-->>Browser: HTTP 200<br/>{id, name, email, role, createdAt}
+        Browser->>Browser: Profil aktualisieren und Erfolgsmeldung anzeigen
+    end
+```
+
+### 5. Passwort ändern (POST `/api/users/change-password` – geschützt)
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser (profile.html)
+    participant Tomcat as Tomcat (Spring Boot)
+    participant JwtFilter as JwtAuthenticationFilter
+    participant Controller as UserController
+    participant Service as UserService
+    participant BCrypt as BCryptPasswordEncoder
+    participant Repo as UserRepository
+    participant DB as SQLite (users.db)
+
+    Browser->>Tomcat: POST /api/users/change-password<br/>Authorization: Bearer <JWT-Token><br/>{oldPassword, newPassword, confirmPassword}
+    Tomcat->>JwtFilter: doFilterInternal() – Token prüfen
+    JwtFilter-->>Tomcat: Token gültig, weiterleiten
+    Tomcat->>Controller: changePassword(ChangePasswordRequest)
+    Controller->>Service: changePassword(ChangePasswordRequest)
+    Service->>Service: Aktuelle email aus SecurityContext
+    Service->>Repo: findByEmail(email)
+    Repo->>DB: SELECT * FROM users WHERE email=?
+    DB-->>Repo: User
+    Repo-->>Service: User
+    Service->>BCrypt: matches(oldPassword, user.password)
+    alt Altes Passwort falsch
+        BCrypt-->>Service: false
+        Service-->>Controller: InvalidCredentialsException
+        Controller->>Controller: ResponseEntity.status(401).body(error)
+        Controller-->>Tomcat: 401 Unauthorized + JSON
+        Tomcat-->>Browser: HTTP 401<br/>{error: "Altes Passwort ist falsch"}
+        Browser->>Browser: Rote Fehlermeldung anzeigen
+    else Altes Passwort korrekt
+        BCrypt-->>Service: true
+        alt Passwörter stimmen nicht überein
+            Service-->>Controller: "Passwörter stimmen nicht überein"
+            Controller->>Controller: ResponseEntity.status(400).body(error)
+            Controller-->>Tomcat: 400 Bad Request + JSON
+            Tomcat-->>Browser: HTTP 400<br/>{error: "Passwörter stimmen nicht überein"}
+            Browser->>Browser: Rote Fehlermeldung anzeigen
+        else Alles gültig
+            Service->>BCrypt: encode(newPassword)
+            BCrypt-->>Service: Gehashtes Passwort
+            Service->>Service: User.setPassword(gehashtesPasswort)
+            Service->>Repo: save(User)
+            Repo->>DB: UPDATE users SET password=? WHERE id=?
+            DB-->>Repo: User aktualisiert
+            Repo-->>Service: User
+            Service-->>Controller: "Passwort erfolgreich geändert!"
+            Controller->>Controller: ResponseEntity.ok(SuccessResponse(message))
+            Controller-->>Tomcat: 200 OK + JSON
+            Tomcat-->>Browser: HTTP 200<br/>{message: "Passwort erfolgreich geändert!"}
+            Browser->>Browser: Grüne Erfolgsmeldung anzeigen
+        end
+    end
+```
+
+---
+
+## Architektur-Überblick
+
+Die Sequenzdiagramme oben veranschaulichen die typische Schichtenarchitektur einer Spring Boot-Anwendung. Jede HTTP-Anfrage durchläuft dabei folgende Komponenten:
+
+| Schicht | Komponente | Verantwortung |
+|---------|-----------|---------------|
+| **Präsentation** | `UserController` | Empfängt HTTP-Anfragen, validiert DTOs, gibt `ResponseEntity` zurück |
+| **Business-Logik** | `UserService` | Enthält die Kernlogik: Validierung, BCrypt-Hashing, JWT-Erstellung |
+| **Persistenz** | `UserRepository` | Spring Data JPA-Schnittstelle; generiert SQL-Abfragen automatisch |
+| **Sicherheit** | `JwtAuthenticationFilter` + `SecurityConfig` | Prüft JWT-Tokens und schützt Endpunkte |
+| **Datenbank** | SQLite (`users.db`) | Speichert Benutzerdaten persistent |
+
+Diese Trennung der Verantwortlichkeiten folgt dem etablierten **Layered Architecture Pattern** und ermöglicht eine klare Struktur, einfache Wartbarkeit und eine gute Testbarkeit jeder Schicht unabhängig voneinander.
